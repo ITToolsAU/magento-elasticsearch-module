@@ -444,8 +444,12 @@ class Pocketphp_Elasticsearch_Model_Resource_Engine implements Pocketphp_Elastic
             $indexIterator = new ArrayIterator($index);
             iterator_apply($indexIterator, array($this, '_prepareIndexDocumentCallback'), array($indexIterator));
             $indexedEntity = $this->_addAdditonalIndexParameters($index['sku']);
-            $this->getClusterManager()->indexDocument($this->getIndexerEntityType(), $this->getIndexerEntityProvider()
-                                                                                          ->getStore(), $indexedEntity->getId(), $this->_currentIndexedDocument);
+            if ($indexedEntity) {
+                $this->getClusterManager()->indexDocument($this->getIndexerEntityType(), $this->getIndexerEntityProvider()
+                    ->getStore(), $indexedEntity->getId(), $this->_currentIndexedDocument);
+            } else {
+                Mage::log('Sku "' . $index['sku'] . '" skipped from index due to object not found using given sku.');
+            }
             $iterator->next();
         }
 
@@ -591,14 +595,15 @@ class Pocketphp_Elasticsearch_Model_Resource_Engine implements Pocketphp_Elastic
     protected function _addAdditonalIndexParameters($sku)
     {
         $indexedEntity = $this->_loadProductBySku($sku);
-        $indexedEntity->setStoreId($this->getIndexerEntityProvider()->getStore());
-        $additionalIndexerData = $this->getIndexerEntityProvider()
-                                      ->getData($indexedEntity);
+        if(is_object($indexedEntity) && $indexedEntity instanceof Mage_Catalog_Model_Product) {
+            $indexedEntity->setStoreId($this->getIndexerEntityProvider()->getStore());
+            $additionalIndexerData = $this->getIndexerEntityProvider()
+                ->getData($indexedEntity);
 
-        foreach ($additionalIndexerData as $code => $additionalData) {
-            $this->_currentIndexedDocument[$code] = $additionalData;
+            foreach ($additionalIndexerData as $code => $additionalData) {
+                $this->_currentIndexedDocument[$code] = $additionalData;
+            }
         }
-
         return $indexedEntity;
     }
 
